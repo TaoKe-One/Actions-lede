@@ -1,25 +1,13 @@
-#
-# Copyright (c) 2019-2020 P3TERX <https://p3terx.com>
-#
-# This is free software, licensed under the MIT License.
-# See /LICENSE for more information.
-#
-# https://github.com/P3TERX/Actions-OpenWrt
-# Description: Build OpenWrt using GitHub Actions
-#
-
 name: build-rockchip
 
 permissions: write-all
-#开启写权限，防止无法上传到release
 
 on:
   repository_dispatch:
   workflow_dispatch:
   schedule:
    - cron: 0 20 * * 2
-   #     分,时,日,月,周。每周三 20时执行一次 (UTC时间)
-  
+
 env:
   FREE_DISK_SH: scripts/free_disk_space.sh
   ENV_SH: scripts/environment.sh
@@ -45,7 +33,7 @@ jobs:
     - name: 检查
       uses: actions/checkout@main
 
-    - name: 初始化环境
+    - name: 初始化环境 & 深度清理
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
@@ -59,6 +47,23 @@ jobs:
         docker container prune -f
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
+
+        # 额外清理大型软件包
+        sudo apt-get remove -y --purge \
+          azure-cli \
+          google-cloud-sdk \
+          hhvm \
+          llvm* \
+          firefox \
+          google-chrome \
+          powershell \
+          mono-devel \
+          php* \
+          mysql* \
+          postgresql* \
+          dotnet*
+        sudo apt-get autoremove -y
+        sudo apt-get clean
 
     - name: 检查空间使用情况1
       if: (!cancelled())
@@ -96,14 +101,6 @@ jobs:
         chmod +x $GITHUB_WORKSPACE/$PACKAGES_SH && $GITHUB_WORKSPACE/$PACKAGES_SH
         chmod +x $GITHUB_WORKSPACE/$CLASH_CORE_SH && $GITHUB_WORKSPACE/$CLASH_CORE_SH
 
-    # - name: 下载文件
-    #   run: |
-    #     cd openwrt
-    #     make defconfig
-    #     make download -j8 V=10
-    #     find dl -size -1024c -exec ls -l {} \;
-    #     find dl -size -1024c -exec rm -f {} \;
-
     - name: 空间使用情况2
       if: (!cancelled())
       run: df -hT
@@ -118,18 +115,14 @@ jobs:
         make toolchain/compile -j$(($(nproc)+1)) || make toolchain/compile -j1 V=s
         echo "status=success" >> $GITHUB_OUTPUT
 
-    - name: 空间使用情况3_1
-      if: (!cancelled())
-      run: df -hT
-
-    - name: 清除工具链编译中间产物...
+    - name: 清理工具链产物
       if: steps.mtools.outputs.status == 'success' && !cancelled()
       run: |
         cd openwrt
         rm -rf dl/*
         rm -rf build_dir/toolchain-*
 
-    - name: 空间使用情况3_2
+    - name: 空间使用情况3
       if: (!cancelled())
       run: df -hT
 
@@ -141,6 +134,14 @@ jobs:
         echo -e "$(($(nproc)+1)) thread compile"
         make target/linux/compile -j$(($(nproc)+1)) || make target/linux/compile -j1 V=s
         echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: 清理内核中间产物
+      if: steps.mkernel.outputs.status == 'success' && !cancelled()
+      run: |
+        cd openwrt
+        rm -rf build_dir/target-*/linux-*/*/.pkg*
+        rm -rf build_dir/target-*/linux-*/*/.config*
+        rm -rf build_dir/target-*/linux-*/*/root-*
 
     - name: 空间使用情况4
       if: (!cancelled())
@@ -157,25 +158,20 @@ jobs:
         make package/install -j$(nproc) || make package/install -j1 V=s
         echo "status=success" >> $GITHUB_OUTPUT
 
-    - name: 空间使用情况5
-      if: (!cancelled())
-      run: df -hT
-
-    - name: 清除插件编译文件
-      id: cpackage
+    - name: 清理插件产物
       if: steps.mpackage.outputs.status == 'success' && !cancelled()
       run: |
         cd openwrt
         rm -rf build_dir/target-*/host
-        echo "status=success" >> $GITHUB_OUTPUT
+        rm -rf build_dir/target-*/staging_dir
 
-    - name: 空间使用情况6
+    - name: 空间使用情况5
       if: (!cancelled())
       run: df -hT
 
     - name: 编译固件
       id: compile
-      if: steps.cpackage.outputs.status == 'success' && !cancelled()
+      if: steps.mpackage.outputs.status == 'success' && !cancelled()
       run: |
         cd openwrt
         echo -e "$(($(nproc)+1)) thread compile"
@@ -184,7 +180,7 @@ jobs:
         make checksum
         echo "status=success" >> $GITHUB_OUTPUT
 
-    - name: 空间使用情况7
+    - name: 空间使用情况6
       if: (!cancelled())
       run: df -hT
 
