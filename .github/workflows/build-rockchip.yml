@@ -48,8 +48,8 @@ jobs:
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
 
-        # 额外清理大型软件包
-        sudo apt-get remove -y --purge \
+        # 额外清理大型软件包（忽略不存在的包）
+        sudo apt-get remove -y --purge --allow-remove-essential \
           azure-cli \
           google-cloud-sdk \
           hhvm \
@@ -61,7 +61,7 @@ jobs:
           php* \
           mysql* \
           postgresql* \
-          dotnet*
+          dotnet* || true
         sudo apt-get autoremove -y
         sudo apt-get clean
 
