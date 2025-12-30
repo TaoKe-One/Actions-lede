@@ -22,3 +22,19 @@ CONFIG_TARGET_ROOTFS_PARTSIZE=300
 
 #luci
 CONFIG_PACKAGE_luci-app-cpufreq=y
+
+# NFS support
+CONFIG_PACKAGE_kmod-fs-nfs-common=y
+CONFIG_PACKAGE_kmod-fs-nfs-v4=y
+CONFIG_PACKAGE_kmod-sunrpc=y
+CONFIG_PACKAGE_kmod-nfs-core=y
+CONFIG_PACKAGE_kmod-nfs-v4=y
+CONFIG_PACKAGE_kmod-dns-resolver=y
+
+# Kernel configuration for NFS
+CONFIG_KERNEL_SUNRPC=y
+CONFIG_KERNEL_NFS_FS=y
+CONFIG_KERNEL_NFS_V4=y
+CONFIG_KERNEL_NFS_V4_1=y
+CONFIG_KERNEL_NFS_V4_2=y
+CONFIG_KERNEL_DNS_RESOLVER=y
