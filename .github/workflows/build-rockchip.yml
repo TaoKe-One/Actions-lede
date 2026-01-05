@@ -185,19 +185,31 @@ jobs:
           new_name=$(echo "$file" | sed 's/rockchip-armv8-//')
           mv -v "$file" "$new_name"
         done
+      
+    - name: 上传固件目录
+      uses: actions/upload-artifact@main
+      if: env.UPLOAD_FIRMWARE == 'true' && steps.organize.outputs.status == 'success' && !cancelled()
+      with:
+        name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        path: ${{ env.FIRMWARE }}
+
+    - name: 生成发布标签
+      id: tag
+      if: env.UPLOAD_RELEASE == 'true' && steps.compile.outputs.status == 'success' && !cancelled()
+      run: |
+        echo -e "🎉 rockchip平台\n✅ 主线源码\n🍃 如出现不稳定可尝试cpu降频\n❗️ ip地址 : 192.168.8.1" >> release.txt
+        echo "release_tag=$(date +"%Y.%m.%d_Rockchip")" >> $GITHUB_OUTPUT
+        echo "status=success" >> $GITHUB_OUTPUT
 
     - name: 上传固件到发布
-      if: env.UPLOAD_RELEASE == 'true' && steps.compile.outputs.status == 'success'
       uses: softprops/action-gh-release@v2.0.4
+      if: steps.tag.outputs.status == 'success' && !cancelled()
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: $(date +"%Y.%m.%d_Rockchip")
+        tag_name: ${{ steps.tag.outputs.release_tag }}
+        body_path: release.txt
         files: ${{ env.FIRMWARE }}/*
-        body: |
-          🎉 Rockchip 平台固件
-          ✅ 如出现不稳定可尝试 CPU 降频
-          ❗️ IP 地址: 192.168.8.1
 
     - name: 删除旧发布
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true'
