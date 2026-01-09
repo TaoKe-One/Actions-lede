@@ -1,0 +1,292 @@
+#
+# Copyright (c) 2019-2020 P3TERX <https://p3terx.com>
+#
+# This is free software, licensed under the MIT License.
+# See /LICENSE for more information.
+#
+# https://github.com/P3TERX/Actions-OpenWrt
+# Description: Build OpenWrt using GitHub Actions
+#
+
+name: build-rockchip
+
+permissions: write-all
+#开启写权限，防止无法上传到release
+
+on:
+  repository_dispatch:
+  workflow_dispatch:
+  schedule:
+   - cron: 0 1 * * 5
+   #     分,时,日,月,周。每周五 1时执行一次 (UTC时间)
+  
+env:
+  FREE_DISK_SH: scripts/free_disk_space.sh
+  ENV_SH: scripts/environment.sh
+  REPO_URL: https://github.com/coolsnowwolf/lede
+  REPO_BRANCH: master
+  PLATFORM_FILE: configs/rockchip-L.txt
+  CONFIG_FILE: configs/packages.txt
+  CONFIG_5G: configs/packages-5G.txt
+  SETTINGS_SH: scripts/init-settings.sh
+  PACKAGES_SH: scripts/packages.sh
+  INSTALL5G_SH: scripts/install-5G.sh
+  CLASH_CORE_SH: scripts/preset-clash-core-arm64-L.sh
+  UPLOAD_BIN_DIR: false
+  UPLOAD_FIRMWARE: false
+  UPLOAD_RELEASE: true
+  TZ: Asia/Shanghai
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - name: 检查代码
+      uses: actions/checkout@main
+
+    - name: 检测 /dev/sda1 分区是否存在
+      id: overlay
+      run: |
+        if [ ! -b /dev/sda1 ]; then
+          echo "错误：/dev/sda1 分区不存在，无法继续执行 OverlayFS 相关操作，退出 Actions！"
+          exit 1  # 退出并标记 Actions 执行失败
+        fi
+          echo "成功检测到 /dev/sda1 分区，继续执行后续步骤。"
+
+    - name: 初始化环境
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        chmod +x $FREE_DISK_SH && $FREE_DISK_SH
+        sudo -E apt-get -qq update -y
+        sudo -E apt-get -qq full-upgrade -y
+        chmod +x $ENV_SH && $ENV_SH
+        sudo rm -rf /etc/apt/sources.list.d/*
+        sudo rm -rf /var/lib/apt/lists/*
+        # 设置时区
+        sudo timedatectl set-timezone "$TZ"
+
+    - name: 检查空间使用情况（初始化）
+      if: (!cancelled())
+      run: df -hT
+
+    - name: 创建 OverlayFS 目录结构
+      run: |
+        sudo mkdir -p /overlay/lower
+        sudo mkdir -p /mnt/overlay/upper
+        sudo mkdir -p /mnt/overlay/work
+        sudo mkdir -p /workdir
+        sudo chmod 777 /overlay/lower
+        sudo chmod 777 /mnt/overlay/upper
+
+    - name: 挂载 OverlayFS 合并分区
+      run: |
+        sudo mount -t overlay overlay \
+         -o rw,lowerdir=/overlay/lower,upperdir=/mnt/overlay/upper,workdir=/mnt/overlay/work /workdir
+        mount | grep overlay
+
+    - name: 设置 /workdir 权限
+      run: |
+        sudo chown $USER:$GROUPS /workdir
+
+    - name: 检查空间使用情况（OverlayFS是否生效）
+      if: (!cancelled())
+      run: df -hT
+
+    - name: 克隆源码
+      working-directory: /workdir
+      run: |
+        git clone $REPO_URL --depth 1 -b $REPO_BRANCH openwrt
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+
+    - name: 开启缓存
+      uses: klever1988/cachewrtbuild@main
+      with:
+        ccache: 'true'
+        toolchain: 'true'
+        mixkey: 'armv8'
+        prefix: ${{ github.workspace }}/openwrt
+
+    - name: 安装 feeds
+      run: |
+        cd openwrt
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    - name: 导入补丁和配置 & 执行脚本
+      run: |
+        [ -d files ] && mv files openwrt/files || echo "files not found"
+        [ -f $CONFIG_5G ] && cat $CONFIG_5G >> openwrt/.config
+        [ -f $PLATFORM_FILE ] && cat $PLATFORM_FILE >> openwrt/.config
+        [ -f $CONFIG_FILE ] && cat $CONFIG_FILE >> openwrt/.config
+        cd openwrt
+        rm target/linux/rockchip/patches-*/991-arm64-dts-rockchip-add-more-cpu-operating-points-for.patch || true
+        chmod +x $GITHUB_WORKSPACE/$INSTALL5G_SH && $GITHUB_WORKSPACE/$INSTALL5G_SH
+        chmod +x $GITHUB_WORKSPACE/$SETTINGS_SH && $GITHUB_WORKSPACE/$SETTINGS_SH
+        chmod +x $GITHUB_WORKSPACE/$PACKAGES_SH && $GITHUB_WORKSPACE/$PACKAGES_SH
+        chmod +x $GITHUB_WORKSPACE/$CLASH_CORE_SH && $GITHUB_WORKSPACE/$CLASH_CORE_SH
+
+    # - name: 下载文件
+    #   run: |
+    #     cd openwrt
+    #     make defconfig
+    #     make download -j8 V=10
+    #     find dl -size -1024c -exec ls -l {} \;
+    #     find dl -size -1024c -exec rm -f {} \;
+
+    - name: 检查空间使用情况（编译前）
+      if: (!cancelled())
+      run: df -hT
+
+    - name: 编译工具链
+      id: mtools
+      run: |
+        cd openwrt
+        make defconfig
+        echo -e "$(nproc) thread compile"
+        make toolchain/compile -j$(($(nproc)+1)) || make toolchain/compile -j1 V=s
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: 检查空间使用情况（工具链清理前）
+      if: steps.mtools.outputs.status == 'success' && !cancelled()
+      run: df -hT
+
+    - name: 清除工具链编译中间产物...
+      if: steps.mtools.outputs.status == 'success' && !cancelled()
+      run: |
+        cd openwrt
+        rm -rf dl/*
+        rm -rf build_dir/toolchain-*
+        rm -rf tmp/*
+
+    - name: 检查空间使用情况（工具链清理后）
+      if: steps.mtools.outputs.status == 'success' && !cancelled()
+      run: df -hT
+
+    - name: 编译内核
+      id: mkernel
+      if: steps.mtools.outputs.status == 'success' && !cancelled()
+      run: |
+        cd openwrt
+        echo -e "$(nproc) thread compile"
+        make defconfig
+        make target/linux/compile -j$(($(nproc)+1)) || make target/linux/compile -j1 V=s
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: 检查空间使用情况（内核占用）
+      if: steps.mkernel.outputs.status == 'success' && !cancelled()
+      run: df -hT
+
+    - name: 编译插件
+      id: mpackage
+      if: steps.mkernel.outputs.status == 'success' && !cancelled()
+      run: |
+        cd openwrt
+        echo -e "$(nproc) thread compile"
+        make package/compile -j$(($(nproc)+1)) || make package/compile -j1 V=s
+        make package/index
+        make package/install -j$(nproc) || make package/install -j1 V=s
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: 检查空间使用情况（插件占用）
+      if: steps.mpackage.outputs.status == 'success' && !cancelled()
+      run: df -hT
+
+    - name: 清除插件编译临时文件
+      id: cpackage
+      if: steps.mpackage.outputs.status == 'success' && !cancelled()
+      run: |
+        cd openwrt
+        rm -rf build_dir/target-*/host
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: 检查空间使用情况（插件清理后）
+      if: steps.cpackage.outputs.status == 'success' && !cancelled()
+      run: df -hT
+
+    - name: 构建根文件系统 + 打包固件
+      id: compile
+      if: steps.cpackage.outputs.status == 'success' && !cancelled()
+      run: |
+        cd openwrt
+        make target/install -j$(nproc) || make target/install -j1 V=s
+        make json_overview_image_info
+        make checksum
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: 检查空间使用情况（打包占用）
+      if: steps.compile.outputs.status == 'success' && !cancelled()
+      run: df -hT
+
+    - name: 上传 bin 目录
+      uses: actions/upload-artifact@main
+      if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
+      with:
+        name: OpenWrt_bin${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        path: openwrt/bin
+
+    - name: 整理文件
+      id: organize
+      if: steps.compile.outputs.status == 'success' && !cancelled()
+      run: |
+        cd openwrt/bin/targets/*/*
+        rm -rf *.bin
+        rm -rf *.buildinfo 
+        rm -rf *.json 
+        rm -rf *.manifest 
+        rm -rf packages
+        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: 固件重命名
+      if: steps.organize.outputs.status == 'success' && !cancelled()
+      shell: bash
+      run: |
+        cd openwrt/bin/targets/*/*
+        for file in *rockchip-armv8-*.gz; do
+          new_name=$(echo "$file" | sed 's/rockchip-armv8-//')
+          mv -v "$file" "$new_name"
+        done
+
+    - name: 上传固件目录
+      uses: actions/upload-artifact@main
+      if: env.UPLOAD_FIRMWARE == 'true' && steps.organize.outputs.status == 'success' && !cancelled()
+      with:
+        name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        path: ${{ env.FIRMWARE }}
+
+    - name: 生成发布标签
+      id: tag
+      if: env.UPLOAD_RELEASE == 'true' && steps.compile.outputs.status == 'success' && !cancelled()
+      run: |
+        echo -e "🎉 rockchip平台\n✅ 主线源码\n🍃 如出现不稳定可尝试cpu降频\n❗️ ip地址 : 192.168.8.1" >> release.txt
+        echo "release_tag=$(date +"%Y.%m.%d_Rockchip")" >> $GITHUB_OUTPUT
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: 上传固件到发布
+      uses: softprops/action-gh-release@v2.0.4
+      if: steps.tag.outputs.status == 'success' && !cancelled()
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.tag.outputs.release_tag }}
+        body_path: release.txt
+        files: ${{ env.FIRMWARE }}/*
+
+    - name: 删除以前发布的固件
+      uses: dev-drprasad/delete-older-releases@v0.3.3
+      if: steps.compile.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
+      with:
+        keep_latest: 15
+        delete_tags: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 删除以前的工作流程
+      uses: Mattraks/delete-workflow-runs@v2
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        repository: ${{ github.repository }}
+        retain_days: 1
+        keep_minimum_runs: 3
