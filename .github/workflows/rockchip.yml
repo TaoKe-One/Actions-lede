@@ -33,6 +33,7 @@ env:
   PACKAGES_SH: scripts/packages.sh
   INSTALL5G_SH: scripts/install-5G.sh
   CLASH_CORE_SH: scripts/preset-clash-core-arm64-L.sh
+  VLMCSD_SH: scripts/vlmcsd.sh
   UPLOAD_BIN_DIR: false
   UPLOAD_FIRMWARE: false
   TZ: Asia/Shanghai
@@ -127,6 +128,7 @@ jobs:
         [ -f $PLATFORM_FILE ] && cat $PLATFORM_FILE >> openwrt/.config
         [ -f $CONFIG_FILE ] && cat $CONFIG_FILE >> openwrt/.config
         [ -f $CONFIG_5G ] && cat $CONFIG_5G >> openwrt/.config
+        chmod +x $VLMCSD_SH && $VLMCSD_SH
         cd openwrt
         rm target/linux/rockchip/patches-*/991-arm64-dts-rockchip-add-more-cpu-operating-points-for.patch || true
         chmod +x $GITHUB_WORKSPACE/$SETTINGS_SH && $GITHUB_WORKSPACE/$SETTINGS_SH
