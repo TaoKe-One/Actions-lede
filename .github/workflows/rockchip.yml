@@ -44,7 +44,7 @@ jobs:
 
     steps:
     - name: 检查代码
-      uses: actions/checkout@main
+      uses: actions/checkout@v4
 
     - name: 初始化环境
       env:
@@ -79,7 +79,7 @@ jobs:
 
     - name: 检查缓存
       id: check-cache
-      uses: actions/cache@main
+      uses: actions/cache@v4
       with:
         key: rockchip-${{env.REPO_BRANCH}}-${{env.WRT_HASH}}
         restore-keys: rockchip-${{env.REPO_BRANCH}}
@@ -140,7 +140,7 @@ jobs:
       run: |
         cd openwrt
         make defconfig
-        make download -j8 V=10
+        make download -j8 V=10 || make download -j1 V=s
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
 
@@ -162,7 +162,7 @@ jobs:
       run: df -hT
 
     - name: 上传 bin 目录
-      uses: actions/upload-artifact@main
+      uses: actions/upload-artifact@v4
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
       with:
         name: OpenWrt_bin${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
@@ -192,7 +192,7 @@ jobs:
         done
 
     - name: 上传固件目录
-      uses: actions/upload-artifact@main
+      uses: actions/upload-artifact@v4
       if: env.UPLOAD_FIRMWARE == 'true' && steps.organize.outputs.status == 'success' && !cancelled()
       with:
         name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
@@ -202,12 +202,12 @@ jobs:
       id: tag
       if: steps.compile.outputs.status == 'success' && !cancelled()
       run: |
-        echo -e "🎉 rockchip平台\n✅ 主线源码\n🍃 如出现不稳定可尝试cpu降频\n❗️ ip地址 : 192.168.8.1" >> release.txt
+        echo -e "🎉 rockchip平台\n✅ 主线源码\n🍃 如出现不稳定可尝试cpu降频\n❗️ ip地址 : 192.168.101.1" >> release.txt
         echo "release_tag=$(date +"%Y.%m.%d_Rockchip")" >> $GITHUB_OUTPUT
         echo "status=success" >> $GITHUB_OUTPUT
 
     - name: 上传固件到发布
-      uses: softprops/action-gh-release@master
+      uses: softprops/action-gh-release@v2
       if: steps.tag.outputs.status == 'success' && !cancelled()
       with:
         tag_name: ${{ steps.tag.outputs.release_tag }}

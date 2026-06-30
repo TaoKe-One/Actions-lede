@@ -10,7 +10,7 @@ rm -rf ./feeds/luci/applications/{luci-app-lucky,luci-app-smartdns,luci-app-time
 rm -rf ./feeds/luci/applications/{luci-app-nikki,luci-app-momo,luci-app-daed}
 
 # 克隆依赖插件
-git clone --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git package/pwpage
+# passwall 后端依赖包 pwpage 已随 passwall 一并移除（不再编译）
 # git clone --depth 1 https://github.com/sbwml/packages_lang_golang -b 25.x feeds/packages/lang/golang
 
 
@@ -27,8 +27,8 @@ git clone -b main --depth 1 https://github.com/sirpdboy/luci-app-timecontrol.git
 # adguardhome
 # git clone -b 2024.09.05 --depth 1 https://github.com/XiaoBinin/luci-app-adguardhome.git
 
-# homeproxy
-git clone -b master --depth 1 https://github.com/immortalwrt/homeproxy.git
+# homeproxy（已停用，不再编译）
+# git clone -b master --depth 1 https://github.com/immortalwrt/homeproxy.git
 
 # lucky
 git clone -b main --depth 1 https://github.com/gdy666/luci-app-lucky.git
@@ -45,14 +45,14 @@ sed -n '33p' smartdns/package/openwrt/Makefile
 # VIKINGYFY/packages
 git clone -b main --depth 1 https://github.com/VIKINGYFY/packages.git
 
-# passwall
-git clone -b main --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall.git
+# passwall（已停用，不再编译）
+# git clone -b main --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall.git
 
-# passwall2
-git clone -b main --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall2.git
+# passwall2（已停用，不再编译）
+# git clone -b main --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall2.git
 
-# mosdns
-git clone -b v5 --depth 1 https://github.com/sbwml/luci-app-mosdns.git
+# mosdns（已停用，不再编译）
+# git clone -b v5 --depth 1 https://github.com/sbwml/luci-app-mosdns.git
 
 # luci-app-netspeedtest
 git clone -b master --depth 1 https://github.com/sirpdboy/luci-app-netspeedtest.git
@@ -60,14 +60,14 @@ git clone -b master --depth 1 https://github.com/sirpdboy/luci-app-netspeedtest.
 # openclash
 git clone -b master --depth 1 https://github.com/vernesong/OpenClash.git
 
-# OpenWrt-nikki
-git clone -b main --depth 1 https://github.com/nikkinikki-org/OpenWrt-nikki.git
+# OpenWrt-nikki（已停用，不再编译）
+# git clone -b main --depth 1 https://github.com/nikkinikki-org/OpenWrt-nikki.git
 
-# OpenWrt-momo
-git clone -b main --depth 1 https://github.com/nikkinikki-org/OpenWrt-momo.git
+# OpenWrt-momo（已停用，不再编译）
+# git clone -b main --depth 1 https://github.com/nikkinikki-org/OpenWrt-momo.git
 
-# daed
-git clone -b master --depth 1 https://github.com/QiuSimons/luci-app-daed.git
+# daed（已停用，不再编译）
+# git clone -b master --depth 1 https://github.com/QiuSimons/luci-app-daed.git
 
 #modem
 # git clone -b main --depth 1 https://github.com/FUjr/modem_feeds.git

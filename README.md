@@ -19,17 +19,15 @@
 |  patches  |  我自己放的补丁文件夹，现在基本用不上了  |
 |  scripts  |  脚本文件夹，实现想要的操作...如修改默认IP地址，克隆插件等...  |
 
-## 📢ip地址：192.168.8.1<br>
-**运行编译时间：周一 Allwinner、周三 Rockchip、周四 mediatek & mt7621(`停止编译`)、周五 x86**<br>
-smartdns（海外端口6553）<br>Openclash已下载好clash?内核<br>
+## 📢ip地址：192.168.101.1<br>
+**编译设备：小马 M68s（瑞芯微 RK3568 / rockchip armv8）**<br>
+**运行编译时间：每周三 20时（UTC）自动编译一次**<br>
+smartdns（海外端口6553）<br>Openclash已下载好clash内核<br>
 
 ![github3](doc/github3.png)<br>
-x86 平台：不用说了吧~<br>
-allwinner 平台：请看 releases<br>
-~~mediatek 平台：还是看 releases<br>~~
-rockchip 平台：太多了 去看看 releases<br>
+M68s 固件：请看 releases<br>
 ![design](doc/design.png)<br>
-## passwall + smartdns（海外端口6553）使用配置。
+## openclash + smartdns（海外端口6553）使用配置。
 ![pwdns](doc/pwdns.png)<br>
 ![pwlist](doc/pwlist.png)<br>
 
