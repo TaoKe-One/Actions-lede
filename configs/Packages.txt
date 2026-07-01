@@ -126,3 +126,8 @@ CONFIG_PACKAGE_kmod-ipt-nat=y
 CONFIG_PACKAGE_kmod-ipt-conntrack=y
 CONFIG_PACKAGE_kmod-nf-ipt6=y
 
+# M68s 两个千兆网口的 PHY 驱动
+# DTS 使用 RK3568 内置 gmac0/gmac1 + Realtek RTL8211F(821x) RGMII PHY，
+# 缺此驱动会导致 PHY 不工作、网口无 link。标准版 m68s 源码未默认带，需显式选中
+CONFIG_PACKAGE_kmod-phy-realtek=y
+
